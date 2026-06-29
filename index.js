@@ -152,7 +152,7 @@ async function startBot() {
 
       // Guardar mapeo phone → rawJid para responder con el formato correcto
       jidMap[from] = rawJid
-      recentMessages.unshift({ from, rawJid, body: body.substring(0, 100), time: new Date().toISOString() })
+      recentMessages.unshift({ from, rawJid, body: body.substring(0, 100), pushName: msg.pushName || '', msgKeys: Object.keys(msg.message || {}), time: new Date().toISOString() })
       if (recentMessages.length > 20) recentMessages.pop()
 
       try {
