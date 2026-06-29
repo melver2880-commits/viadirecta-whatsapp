@@ -17,6 +17,7 @@ const AUTH_FOLDER = path.join(__dirname, 'auth_info')
 let currentQR = null
 let isConnected = false
 let sock = null
+let recentMessages = [] // Para debug
 
 // ── Página QR ─────────────────────────────────────────────────────────────────
 app.get('/', async (req, res) => {
@@ -74,9 +75,9 @@ app.post('/send', async (req, res) => {
   }
 })
 
-// ── Estado ────────────────────────────────────────────────────────────────────
-app.get('/status', (req, res) => {
-  res.json({ connected: isConnected })
+// ── Debug: últimos mensajes recibidos ─────────────────────────────────────────
+app.get('/messages', (req, res) => {
+  res.json({ connected: isConnected, recent: recentMessages })
 })
 
 // ── Iniciar Baileys ───────────────────────────────────────────────────────────
@@ -142,7 +143,11 @@ async function startBot() {
 
       if (!from || !body) continue
 
-      console.log(`📨 Mensaje de ${from}: ${body.substring(0, 50)}`)
+      console.log(`📨 Mensaje de ${from} (jid: ${rawJid}): ${body.substring(0, 50)}`)
+
+      // Guardar para debug
+      recentMessages.unshift({ from, rawJid, body: body.substring(0, 100), time: new Date().toISOString() })
+      if (recentMessages.length > 20) recentMessages.pop()
 
       try {
         // Reenviar al backend de VíaDirecta para que lo procese el bot con IA
