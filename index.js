@@ -17,8 +17,9 @@ const AUTH_FOLDER = path.join(__dirname, 'auth_info')
 let currentQR = null
 let isConnected = false
 let sock = null
-let recentMessages = [] // Para debug
-const jidMap = {}       // phone → rawJid (para responder con el formato correcto)
+let recentMessages = []
+const jidMap = {}       // from → rawJid (para responder)
+const lidToPhone = {}   // @lid number → @s.whatsapp.net number
 
 // ── Página QR ─────────────────────────────────────────────────────────────────
 app.get('/', async (req, res) => {
@@ -100,6 +101,20 @@ async function startBot() {
 
   sock.ev.on('creds.update', saveCreds)
 
+  // ── Sincronizar contactos para mapear @lid → número real ─────────────────
+  sock.ev.on('contacts.upsert', (contacts) => {
+    for (const c of contacts) {
+      if (c.id && c.lid) {
+        const lidNum = c.lid.split('@')[0]
+        const phone = c.id.split('@')[0]
+        if (lidNum && phone) {
+          lidToPhone[lidNum] = phone
+        }
+      }
+    }
+    console.log(`📊 Contactos sincronizados: ${Object.keys(lidToPhone).length} con @lid mapeado`)
+  })
+
   sock.ev.on('connection.update', async ({ connection, lastDisconnect, qr }) => {
     if (qr) {
       currentQR = qr
@@ -132,14 +147,16 @@ async function startBot() {
 
       // Limpiar JID — WhatsApp usa @s.whatsapp.net o @lid según el contacto
       const rawJid = msg.key.remoteJid || ''
-      const from = rawJid
-        .replace('@s.whatsapp.net', '')
-        .replace('@lid', '')
-        .replace('@g.us', '')  // ignorar grupos
-        .trim()
+      const rawFrom = rawJid.replace('@s.whatsapp.net', '').replace('@lid', '').replace('@g.us', '').trim()
 
-      // Ignorar mensajes de grupos
+      // Ignorar grupos
       if (rawJid.includes('@g.us')) continue
+
+      // Resolver @lid → número de teléfono real si está en el mapa de contactos
+      const from = rawJid.includes('@lid') ? (lidToPhone[rawFrom] || rawFrom) : rawFrom
+      const resolvedJid = from + '@s.whatsapp.net'
+
+      console.log(`📨 Mensaje de ${rawFrom} (lid→${from}): ${body?.substring(0, 50)}`)
 
       const body = msg.message?.conversation
         || msg.message?.extendedTextMessage?.text
@@ -148,15 +165,12 @@ async function startBot() {
 
       if (!from || !body) continue
 
-      console.log(`📨 Mensaje de ${from} (jid: ${rawJid}): ${body.substring(0, 50)}`)
-
-      // Guardar mapeo phone → rawJid para responder con el formato correcto
-      jidMap[from] = rawJid
-      recentMessages.unshift({ from, rawJid, body: body.substring(0, 100), pushName: msg.pushName || '', msgKeys: Object.keys(msg.message || {}), time: new Date().toISOString() })
+      // Guardar mapeo: siempre guardar con el número real y el JID resuelto
+      jidMap[from] = resolvedJid
+      recentMessages.unshift({ from, rawJid, resolvedJid, body: body.substring(0, 100), time: new Date().toISOString() })
       if (recentMessages.length > 20) recentMessages.pop()
 
       try {
-        // Reenviar al backend de VíaDirecta para que lo procese el bot con IA
         await axios.post(`${BACKEND_URL}/api/webhooks/baileys`, {
           from,
           body,
