@@ -115,6 +115,16 @@ async function startBot() {
     console.log(`📊 Contactos sincronizados: ${Object.keys(lidToPhone).length} con @lid mapeado`)
   })
 
+  // ── Evento clave: mapeo directo @lid → número real ────────────────────────
+  sock.ev.on('chats.phoneNumberShare', ({ lid, jid }) => {
+    const lidNum = (lid || '').split('@')[0]
+    const phone = (jid || '').split('@')[0]
+    if (lidNum && phone) {
+      lidToPhone[lidNum] = phone
+      console.log(`📞 @lid resuelto: ${lidNum} → ${phone}`)
+    }
+  })
+
   sock.ev.on('connection.update', async ({ connection, lastDisconnect, qr }) => {
     if (qr) {
       currentQR = qr
@@ -145,27 +155,45 @@ async function startBot() {
     for (const msg of messages) {
       if (msg.key.fromMe) continue
 
-      // Limpiar JID — WhatsApp usa @s.whatsapp.net o @lid según el contacto
       const rawJid = msg.key.remoteJid || ''
-      const rawFrom = rawJid.replace('@s.whatsapp.net', '').replace('@lid', '').replace('@g.us', '').trim()
+      const altJid  = msg.key.remoteJidAlt || ''   // WhatsApp pone el número real aquí cuando rawJid es @lid
 
       // Ignorar grupos
       if (rawJid.includes('@g.us')) continue
 
-      // Resolver @lid → número de teléfono real si está en el mapa de contactos
-      const from = rawJid.includes('@lid') ? (lidToPhone[rawFrom] || rawFrom) : rawFrom
-      const resolvedJid = from + '@s.whatsapp.net'
-
-      console.log(`📨 Mensaje de ${rawFrom} (lid→${from}): ${body?.substring(0, 50)}`)
-
+      // Extraer texto — debe ir ANTES de cualquier uso de `body`
       const body = msg.message?.conversation
         || msg.message?.extendedTextMessage?.text
         || msg.message?.imageMessage?.caption
         || ''
 
+      // ── Resolver el JID real (3 niveles de fallback) ──────────────────────
+      // 1. remoteJidAlt: campo directo que Baileys expone para contactos @lid
+      // 2. lidToPhone mapa (poblado por contacts.upsert + chats.phoneNumberShare)
+      // 3. Último recurso: usar el rawJid sin dominio (puede ser el lid numérico)
+      let resolvedJid
+      if (altJid && altJid.includes('@s.whatsapp.net')) {
+        resolvedJid = altJid
+      } else if (rawJid.includes('@lid')) {
+        const lidNum = rawJid.split('@')[0]
+        const mapped = lidToPhone[lidNum]
+        if (mapped) {
+          resolvedJid = mapped + '@s.whatsapp.net'
+        } else {
+          console.log(`⚠️  @lid sin resolver: ${rawJid} — esperando evento phoneNumberShare`)
+          continue   // No podemos responder sin el número real; omitir mensaje
+        }
+      } else {
+        resolvedJid = rawJid
+      }
+
+      const from = resolvedJid.split('@')[0]
+
+      console.log(`📨 rawJid=${rawJid} | altJid=${altJid || 'N/A'} → resuelto=${resolvedJid} | body: "${body.substring(0, 60)}"`)
+
       if (!from || !body) continue
 
-      // Guardar mapeo: siempre guardar con el número real y el JID resuelto
+      // Guardar mapeo para el endpoint /send
       jidMap[from] = resolvedJid
       recentMessages.unshift({ from, rawJid, resolvedJid, body: body.substring(0, 100), time: new Date().toISOString() })
       if (recentMessages.length > 20) recentMessages.pop()
