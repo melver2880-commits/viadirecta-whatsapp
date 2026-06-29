@@ -18,6 +18,7 @@ let currentQR = null
 let isConnected = false
 let sock = null
 let recentMessages = [] // Para debug
+const jidMap = {}       // phone → rawJid (para responder con el formato correcto)
 
 // ── Página QR ─────────────────────────────────────────────────────────────────
 app.get('/', async (req, res) => {
@@ -67,10 +68,14 @@ app.post('/send', async (req, res) => {
     return res.status(503).json({ error: 'WhatsApp no conectado' })
   }
   try {
-    const jid = to.replace('+', '') + '@s.whatsapp.net'
+    // Usar el rawJid original si está en el mapa (maneja @lid y @s.whatsapp.net)
+    const phone = to.replace('+', '')
+    const jid = jidMap[phone] || (phone + '@s.whatsapp.net')
     await sock.sendMessage(jid, { text: message })
+    console.log(`✅ Mensaje enviado a ${jid}`)
     res.json({ success: true })
   } catch (e) {
+    console.error(`❌ Error enviando a ${to}:`, e.message)
     res.status(500).json({ error: e.message })
   }
 })
@@ -145,7 +150,8 @@ async function startBot() {
 
       console.log(`📨 Mensaje de ${from} (jid: ${rawJid}): ${body.substring(0, 50)}`)
 
-      // Guardar para debug
+      // Guardar mapeo phone → rawJid para responder con el formato correcto
+      jidMap[from] = rawJid
       recentMessages.unshift({ from, rawJid, body: body.substring(0, 100), time: new Date().toISOString() })
       if (recentMessages.length > 20) recentMessages.pop()
 
