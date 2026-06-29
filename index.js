@@ -69,14 +69,15 @@ app.post('/send', async (req, res) => {
     return res.status(503).json({ error: 'WhatsApp no conectado' })
   }
   try {
-    // Usar el rawJid original si está en el mapa (maneja @lid y @s.whatsapp.net)
     const phone = to.replace('+', '')
+    // jidMap puede contener @lid (para desconocidos) o @s.whatsapp.net (para contactos)
     const jid = jidMap[phone] || (phone + '@s.whatsapp.net')
+    console.log(`📤 Enviando respuesta: to=${to} | phone=${phone} | jid=${jid}`)
     await sock.sendMessage(jid, { text: message })
-    console.log(`✅ Mensaje enviado a ${jid}`)
+    console.log(`✅ Mensaje enviado exitosamente a ${jid}`)
     res.json({ success: true })
   } catch (e) {
-    console.error(`❌ Error enviando a ${to}:`, e.message)
+    console.error(`❌ Error enviando a ${to} | jid=${jidMap[to.replace('+','')] || 'no en mapa'}:`, e.message)
     res.status(500).json({ error: e.message })
   }
 })
@@ -167,33 +168,38 @@ async function startBot() {
         || msg.message?.imageMessage?.caption
         || ''
 
-      // ── Resolver el JID real (3 niveles de fallback) ──────────────────────
-      // 1. remoteJidAlt: campo directo que Baileys expone para contactos @lid
-      // 2. lidToPhone mapa (poblado por contacts.upsert + chats.phoneNumberShare)
-      // 3. Último recurso: usar el rawJid sin dominio (puede ser el lid numérico)
+      // ── Resolver el JID para responder (3 niveles de fallback) ──────────────
+      // 1. remoteJidAlt: contiene el número real cuando remoteJid es @lid
+      // 2. lidToPhone mapa (poblado por contacts.upsert / chats.phoneNumberShare)
+      // 3. FALLBACK CRÍTICO: usar rawJid @lid directamente — Baileys v6 lo soporta
       let resolvedJid
+      let from
+
       if (altJid && altJid.includes('@s.whatsapp.net')) {
         resolvedJid = altJid
+        from = altJid.split('@')[0]
       } else if (rawJid.includes('@lid')) {
         const lidNum = rawJid.split('@')[0]
         const mapped = lidToPhone[lidNum]
         if (mapped) {
           resolvedJid = mapped + '@s.whatsapp.net'
+          from = mapped
         } else {
-          console.log(`⚠️  @lid sin resolver: ${rawJid} — esperando evento phoneNumberShare`)
-          continue   // No podemos responder sin el número real; omitir mensaje
+          // FALLBACK: Baileys puede enviar a @lid directamente, WhatsApp lo enruta
+          resolvedJid = rawJid
+          from = lidNum
+          console.log(`⚠️  @lid sin resolver en mapa: ${rawJid} — usando @lid directamente`)
         }
       } else {
         resolvedJid = rawJid
+        from = rawJid.split('@')[0]
       }
 
-      const from = resolvedJid.split('@')[0]
-
-      console.log(`📨 rawJid=${rawJid} | altJid=${altJid || 'N/A'} → resuelto=${resolvedJid} | body: "${body.substring(0, 60)}"`)
+      console.log(`📨 rawJid=${rawJid} | altJid=${altJid || 'N/A'} → resolvedJid=${resolvedJid} | from=${from} | body: "${body.substring(0, 60)}"`)
 
       if (!from || !body) continue
 
-      // Guardar mapeo para el endpoint /send
+      // Guardar mapeo para el endpoint /send (guarda el JID original, incluso @lid)
       jidMap[from] = resolvedJid
       recentMessages.unshift({ from, rawJid, resolvedJid, body: body.substring(0, 100), time: new Date().toISOString() })
       if (recentMessages.length > 20) recentMessages.pop()
