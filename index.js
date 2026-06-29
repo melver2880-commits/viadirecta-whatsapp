@@ -124,9 +124,20 @@ async function startBot() {
     for (const msg of messages) {
       if (msg.key.fromMe) continue
 
-      const from = msg.key.remoteJid?.replace('@s.whatsapp.net', '') || ''
+      // Limpiar JID — WhatsApp usa @s.whatsapp.net o @lid según el contacto
+      const rawJid = msg.key.remoteJid || ''
+      const from = rawJid
+        .replace('@s.whatsapp.net', '')
+        .replace('@lid', '')
+        .replace('@g.us', '')  // ignorar grupos
+        .trim()
+
+      // Ignorar mensajes de grupos
+      if (rawJid.includes('@g.us')) continue
+
       const body = msg.message?.conversation
         || msg.message?.extendedTextMessage?.text
+        || msg.message?.imageMessage?.caption
         || ''
 
       if (!from || !body) continue
