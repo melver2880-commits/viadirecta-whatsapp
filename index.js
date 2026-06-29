@@ -87,6 +87,22 @@ app.get('/messages', (req, res) => {
   res.json({ connected: isConnected, recent: recentMessages })
 })
 
+// ── Debug: diagnóstico completo ───────────────────────────────────────────────
+app.get('/debug', (req, res) => {
+  res.json({ connected: isConnected, backendUrl: BACKEND_URL, jidMap, lidToPhone, recentMessages })
+})
+
+// ── Test: llama al webhook de la PWA para verificar si responde ───────────────
+app.post('/test-webhook', async (req, res) => {
+  const payload = req.body.payload || { from: 'test_debug', body: 'Prueba diagnóstico', type: 'chat', timestamp: Date.now() }
+  try {
+    const r = await axios.post(`${BACKEND_URL}/api/webhooks/baileys`, payload, { timeout: 15000 })
+    res.json({ ok: true, status: r.status, data: r.data })
+  } catch (e) {
+    res.json({ ok: false, error: e.message, httpStatus: e.response?.status, data: e.response?.data })
+  }
+})
+
 // ── Iniciar Baileys ───────────────────────────────────────────────────────────
 async function startBot() {
   const { state, saveCreds } = await useMultiFileAuthState(AUTH_FOLDER)
