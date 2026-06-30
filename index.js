@@ -21,6 +21,12 @@ let recentMessages = []
 const jidMap = {}       // from → rawJid (para responder)
 const lidToPhone = {}   // @lid number → @s.whatsapp.net number
 
+// ── Lista de números bloqueados (el bot los ignora silenciosamente) ───────────
+// Carga inicial desde variable de entorno: BLOCKED_NUMBERS=5841234,5849876
+const blockedNumbers = new Set(
+  (process.env.BLOCKED_NUMBERS || '').split(',').map(n => n.trim()).filter(Boolean)
+)
+
 // ── Página QR ─────────────────────────────────────────────────────────────────
 app.get('/', async (req, res) => {
   if (isConnected) {
@@ -104,6 +110,43 @@ app.get('/force-reconnect', async (req, res) => {
   h1{color:#ea580c}</style></head><body><h1>🔄 Reconectando...</h1>
   <p>Socket reiniciado. Redirigiendo en 5 segundos...</p></body></html>`)
 })
+// ── Gestionar números bloqueados ──────────────────────────────────────────────
+app.get('/blocked', (req, res) => {
+  res.send(`<!DOCTYPE html><html><head><meta charset="utf-8">
+  <title>Números Bloqueados</title>
+  <style>body{font-family:sans-serif;max-width:500px;margin:40px auto;padding:20px}
+  h2{color:#dc2626}input{padding:8px;width:70%;border:1px solid #ccc;border-radius:6px}
+  button{padding:8px 16px;margin-left:8px;border:none;border-radius:6px;cursor:pointer}
+  .bloquear{background:#dc2626;color:#fff}.desbloquear{background:#16a34a;color:#fff}
+  li{padding:6px 0;border-bottom:1px solid #eee;display:flex;justify-content:space-between;align-items:center}</style></head>
+  <body>
+  <h2>🚫 Números Bloqueados</h2>
+  <p>Estos números escriben al bot pero él los ignora silenciosamente.</p>
+  <div><input id="num" placeholder="Ej: 584125551234 (sin +)" />
+  <button class="bloquear" onclick="bloquear()">Bloquear</button></div>
+  <ul id="lista" style="margin-top:20px">${[...blockedNumbers].map(n => `<li><span>${n}</span>
+  <button class="desbloquear" onclick="desbloquear('${n}')">Desbloquear</button></li>`).join('') || '<li>Ningún número bloqueado</li>'}</ul>
+  <script>
+  async function bloquear(){const n=document.getElementById('num').value.trim();if(!n)return;
+  await fetch('/blocked/'+n,{method:'POST'});location.reload()}
+  async function desbloquear(n){await fetch('/blocked/'+n,{method:'DELETE'});location.reload()}
+  </script></body></html>`)
+})
+
+app.post('/blocked/:number', (req, res) => {
+  const num = req.params.number.replace('+', '').trim()
+  blockedNumbers.add(num)
+  console.log(`🚫 Número bloqueado: ${num} | Total bloqueados: ${blockedNumbers.size}`)
+  res.json({ ok: true, blocked: num, total: blockedNumbers.size })
+})
+
+app.delete('/blocked/:number', (req, res) => {
+  const num = req.params.number.replace('+', '').trim()
+  blockedNumbers.delete(num)
+  console.log(`✅ Número desbloqueado: ${num}`)
+  res.json({ ok: true, unblocked: num, total: blockedNumbers.size })
+})
+
 // ── Debug: diagnóstico completo ───────────────────────────────────────────────
 app.get('/debug', (req, res) => {
   res.json({ connected: isConnected, backendUrl: BACKEND_URL, jidMap, lidToPhone, recentMessages })
@@ -242,6 +285,12 @@ async function startBot() {
       console.log(`📨 rawJid=${rawJid} | altJid=${altJid || 'N/A'} → resolvedJid=${resolvedJid} | from=${from} | body: "${body.substring(0, 60)}"`)
 
       if (!from || !body) continue
+
+      // ── Verificar si el número está bloqueado ────────────────────────────────
+      if (blockedNumbers.has(from)) {
+        console.log(`🚫 Número bloqueado ignorado: ${from}`)
+        continue
+      }
 
       // Guardar mapeo para el endpoint /send (guarda el JID original, incluso @lid)
       jidMap[from] = resolvedJid
