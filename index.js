@@ -155,6 +155,7 @@ async function startBot() {
 
   // ── Recibir mensajes y reenviar al backend de VíaDirecta ───────────────────
   sock.ev.on('messages.upsert', async ({ messages, type }) => {
+    console.log(`📬 messages.upsert — type: ${type}, cantidad: ${messages.length}`)
     if (type !== 'notify') return
 
     for (const msg of messages) {
@@ -222,14 +223,15 @@ async function startBot() {
       if (recentMessages.length > 20) recentMessages.pop()
 
       try {
-        await axios.post(`${BACKEND_URL}/api/webhooks/baileys`, {
+        const resp = await axios.post(`${BACKEND_URL}/api/webhooks/baileys`, {
           from,
           body,
           type: 'chat',
           timestamp: Date.now(),
         }, { timeout: 30000 })
+        console.log(`✅ PWA webhook OK: status=${resp.status}`, JSON.stringify(resp.data).substring(0, 200))
       } catch (e) {
-        console.error('Error enviando al backend:', e.message)
+        console.error(`❌ PWA webhook FALLÓ: ${e.message} | status=${e.response?.status} | body=${JSON.stringify(e.response?.data)}`)
       }
     }
   })
