@@ -145,11 +145,20 @@ async function startBot() {
 
     if (connection === 'close') {
       isConnected = false
-      const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut
-      console.log('❌ Desconectado. Reconectando:', shouldReconnect)
-      if (shouldReconnect) {
-        setTimeout(startBot, 5000)
+      const statusCode = lastDisconnect?.error?.output?.statusCode
+      console.log(`❌ Desconectado. Código: ${statusCode}`)
+
+      // Error 515: WhatsApp pide reinicio — recrear socket para salir del estado "sordo"
+      if (statusCode === DisconnectReason.restartRequired) {
+        console.log('⚠️  restartRequired (515) — recreando socket en 2s...')
+        try { sock?.end(undefined) } catch (_) {}
+        setTimeout(startBot, 2000)
+        return
       }
+
+      const shouldReconnect = statusCode !== DisconnectReason.loggedOut
+      console.log('Reconectando:', shouldReconnect)
+      if (shouldReconnect) setTimeout(startBot, 5000)
     }
   })
 

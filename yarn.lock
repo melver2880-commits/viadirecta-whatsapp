@@ -279,7 +279,7 @@
   dependencies:
     "@wasm-audio-decoders/common" "9.0.7"
 
-"@whiskeysockets/baileys@^6.7.9":
+"@whiskeysockets/baileys@^6.7.18":
   version "6.17.16"
   resolved "https://registry.yarnpkg.com/@whiskeysockets/baileys/-/baileys-6.17.16.tgz#e2aa5f0dff3639eb6a952cb75fd75eaf3af607e9"
   integrity sha512-cZoUaKpO4fsDUNiCtyZfbjkW0Bjl/IudzHLCvpqfqtq5TACQzNynYsYdKPJz1I8Cu/SSEvmewk0RorIs0zDWyw==
