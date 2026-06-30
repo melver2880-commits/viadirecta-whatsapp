@@ -94,12 +94,15 @@ app.get('/version', (req, res) => {
 })
 
 // ── Forzar reconexión del socket (escape del estado "sordo") ─────────────────
-app.post('/force-reconnect', async (req, res) => {
+app.get('/force-reconnect', async (req, res) => {
   console.log('🔄 Reconexión forzada solicitada...')
   isConnected = false
   try { sock?.end(undefined) } catch (_) {}
   setTimeout(startBot, 2000)
-  res.json({ ok: true, message: 'Reconectando en 2 segundos...' })
+  res.send(`<!DOCTYPE html><html><head><meta charset="utf-8"><meta http-equiv="refresh" content="5;url=/">
+  <title>Reconectando...</title><style>body{font-family:sans-serif;text-align:center;padding:60px;background:#fff7ed}
+  h1{color:#ea580c}</style></head><body><h1>🔄 Reconectando...</h1>
+  <p>Socket reiniciado. Redirigiendo en 5 segundos...</p></body></html>`)
 })
   res.json({ connected: isConnected, backendUrl: BACKEND_URL, jidMap, lidToPhone, recentMessages })
 })
