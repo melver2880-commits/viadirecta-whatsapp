@@ -87,8 +87,20 @@ app.get('/messages', (req, res) => {
   res.json({ connected: isConnected, recent: recentMessages })
 })
 
-// ── Debug: diagnóstico completo ───────────────────────────────────────────────
-app.get('/debug', (req, res) => {
+// ── Versión / health check ────────────────────────────────────────────────────
+const DEPLOY_TIME = new Date().toISOString()
+app.get('/version', (req, res) => {
+  res.json({ version: DEPLOY_TIME, connected: isConnected, jidMapSize: Object.keys(jidMap).length })
+})
+
+// ── Forzar reconexión del socket (escape del estado "sordo") ─────────────────
+app.post('/force-reconnect', async (req, res) => {
+  console.log('🔄 Reconexión forzada solicitada...')
+  isConnected = false
+  try { sock?.end(undefined) } catch (_) {}
+  setTimeout(startBot, 2000)
+  res.json({ ok: true, message: 'Reconectando en 2 segundos...' })
+})
   res.json({ connected: isConnected, backendUrl: BACKEND_URL, jidMap, lidToPhone, recentMessages })
 })
 
