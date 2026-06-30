@@ -104,6 +104,8 @@ app.get('/force-reconnect', async (req, res) => {
   h1{color:#ea580c}</style></head><body><h1>🔄 Reconectando...</h1>
   <p>Socket reiniciado. Redirigiendo en 5 segundos...</p></body></html>`)
 })
+// ── Debug: diagnóstico completo ───────────────────────────────────────────────
+app.get('/debug', (req, res) => {
   res.json({ connected: isConnected, backendUrl: BACKEND_URL, jidMap, lidToPhone, recentMessages })
 })
 
