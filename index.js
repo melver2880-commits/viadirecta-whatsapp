@@ -68,8 +68,20 @@ app.get('/', async (req, res) => {
   `)
 })
 
+// ── Clave secreta para proteger endpoints sensibles ───────────────────────────
+const API_KEY = process.env.BOT_API_KEY || ''
+
+function requireApiKey(req, res, next) {
+  if (!API_KEY) return next() // Si no está configurada, permite todo (modo desarrollo)
+  const key = req.headers['x-api-key'] || req.query.key || ''
+  if (key !== API_KEY) {
+    return res.status(401).json({ error: 'No autorizado' })
+  }
+  next()
+}
+
 // ── Endpoint para enviar mensajes (llamado desde el backend de VíaDirecta) ────
-app.post('/send', async (req, res) => {
+app.post('/send', requireApiKey, async (req, res) => {
   const { to, message } = req.body
   if (!sock || !isConnected) {
     return res.status(503).json({ error: 'WhatsApp no conectado' })
