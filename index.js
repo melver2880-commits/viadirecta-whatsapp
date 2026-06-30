@@ -166,6 +166,19 @@ async function startBot() {
       // Ignorar grupos
       if (rawJid.includes('@g.us')) continue
 
+      // LOG DIAGNÓSTICO: imprimir todos los campos relevantes del mensaje
+      if (rawJid.includes('@lid')) {
+        console.log('🔍 DIAGNÓSTICO @lid:')
+        console.log('  remoteJid      :', rawJid)
+        console.log('  remoteJidAlt   :', altJid || '(vacío)')
+        console.log('  pushName       :', msg.pushName || '(vacío)')
+        console.log('  participant    :', msg.key.participant || '(vacío)')
+        console.log('  notify name    :', msg.verifiedBizName || '(vacío)')
+        // Revisar si viene en algún otro campo
+        const extra = msg.message?.extendedTextMessage?.contextInfo?.participant || ''
+        console.log('  contextInfo.participant:', extra || '(vacío)')
+      }
+
       // Extraer texto — debe ir ANTES de cualquier uso de `body`
       const body = msg.message?.conversation
         || msg.message?.extendedTextMessage?.text
