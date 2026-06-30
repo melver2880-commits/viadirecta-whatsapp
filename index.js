@@ -118,21 +118,9 @@ async function startBot() {
 
   sock.ev.on('creds.update', saveCreds)
 
-  // ── Sincronizar contactos para mapear @lid → número real ─────────────────
-  sock.ev.on('contacts.upsert', (contacts) => {
-    for (const c of contacts) {
-      if (c.id && c.lid) {
-        const lidNum = c.lid.split('@')[0]
-        const phone = c.id.split('@')[0]
-        if (lidNum && phone) {
-          lidToPhone[lidNum] = phone
-        }
-      }
-    }
-    console.log(`📊 Contactos sincronizados: ${Object.keys(lidToPhone).length} con @lid mapeado`)
-  })
-
   // ── Evento clave: mapeo directo @lid → número real ────────────────────────
+  // NOTA: contacts.upsert fue removido — causaba mapeos incorrectos entre @lid de desconocidos
+  // y números venezolanos existentes en la agenda. Solo usamos chats.phoneNumberShare que es preciso.
   sock.ev.on('chats.phoneNumberShare', ({ lid, jid }) => {
     const lidNum = (lid || '').split('@')[0]
     const phone = (jid || '').split('@')[0]
